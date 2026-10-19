@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#faf8f5">
+<title>10枚カード</title>
+<style>
+:root{--bg:#faf8f5;--fg:#2b2724;--mut:#7a726b;--card:#fff;--line:#e6e0d8;--acc:#d9822b;--acc2:#3c8d93;--ok:#4a8f5c}
+@media(prefers-color-scheme:dark){:root{--bg:#171513;--fg:#f1ece6;--mut:#a39a91;--card:#221f1c;--line:#34302b;--acc:#f0a050;--acc2:#6cc0c6;--ok:#7bc48c}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--fg);font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;line-height:1.7}
+body{min-height:100vh;padding-bottom:calc(76px + env(safe-area-inset-bottom))}
+main{max-width:560px;margin:0 auto;padding:20px 16px}
+h1{font-size:1.25rem;margin:.2em 0 .6em}
+h2{font-size:1.05rem;margin:1.2em 0 .5em}
+p{margin:.5em 0}
+.mut{color:var(--mut);font-size:.88rem}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin:12px 0}
+.chip{display:inline-block;background:var(--acc);color:#fff;border-radius:99px;padding:2px 12px;font-size:.82rem}
+.btn{display:block;width:100%;padding:14px;border:0;border-radius:14px;background:var(--acc);color:#fff;font-size:1rem;font-weight:600;margin:12px 0;cursor:pointer}
+.btn.sub{background:transparent;color:var(--fg);border:1px solid var(--line)}
+.btn:disabled{opacity:.35}
+.bar{height:10px;background:var(--line);border-radius:99px;overflow:hidden}
+.bar>i{display:block;height:100%;background:var(--acc2)}
+label{display:block;font-size:.85rem;color:var(--mut);margin:10px 0 2px}
+input,textarea{width:100%;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--bg);color:var(--fg);font:inherit;font-size:16px}
+nav{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--card);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+nav button{flex:1;border:0;background:none;color:var(--mut);padding:12px 0;font-size:.8rem;cursor:pointer}
+nav button.on{color:var(--acc);font-weight:700}
+.stars{display:flex;gap:6px;justify-content:center;margin:10px 0}
+.stars button{flex:1;padding:10px 0;border:1px solid var(--line);border-radius:12px;background:var(--bg);color:var(--fg);font-size:1rem;cursor:pointer}
+.stars button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+.stars small{display:block;font-size:.65rem;opacity:.8}
+.work{min-height:210px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;font-size:1.3rem;padding:28px 18px;touch-action:pan-y;user-select:none}
+.work .tag{font-size:.8rem;color:var(--mut);margin-bottom:10px}
+.burn{animation:burn .95s ease-in forwards}
+@keyframes burn{0%{opacity:1;transform:none;filter:none}35%{filter:sepia(1) saturate(5) brightness(1.2);box-shadow:0 0 44px var(--acc)}100%{opacity:0;transform:translateY(-70px) scale(.9);filter:blur(9px) sepia(1)}}
+@media(prefers-reduced-motion:reduce){.burn{animation:fade .5s forwards}@keyframes fade{to{opacity:0}}}
+.foot{margin-top:28px;padding-top:12px;border-top:1px solid var(--line);font-size:.78rem;color:var(--mut)}
+.row{display:flex;justify-content:space-between;gap:8px;font-size:.9rem}
+svg{width:100%;height:auto;display:block}
+</style>
+</head>
+<body>
+<main id="main"></main>
+<nav id="nav"></nav>
+
+<script>
+(function(){
+'use strict';
+var KEY='arapp_v1';
+var LABELS=['ほぼ平気','少し気になる','まあまあ苦しい','かなり苦しい','とても苦しい'];
+var EX_T=['例：スマートフォン','例：一緒に撮った写真','例：もらった物','例：その人本人','例：思い出の場所'];
+var EX_I=['例：二人で過ごした時間','例：楽しかった思い出','例：失われたと感じる若さ','例：叶わなかった将来の夢','例：「もし」という期待'];
+
+function blank(){var c=[];for(var i=0;i<10;i++)c.push({type:i<5?'tangible':'intangible',text:''});return{cards:c,sessions:[],joys:[]};}
+function load(){try{var d=JSON.parse(localStorage.getItem(KEY));if(d&&d.cards&&d.cards.length===10)return d;}catch(e){}return blank();}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
+var S=load();
+var view='home';
+var W=null; // session state
+
+function today(){return new Date().toLocaleDateString('sv-SE');}
+function h(tag,attrs){
+  var e=document.createElement(tag);
+  if(attrs)for(var k in attrs){
+    if(k==='class')e.className=attrs[k];
+    else if(k.indexOf('on')===0)e.addEventListener(k.slice(2),attrs[k]);
+    else e.setAttribute(k,attrs[k]);
+  }
+  for(var i=2;i<arguments.length;i++){
+    var c=arguments[i];
+    if(c==null)continue;
+    e.appendChild(typeof c==='string'?document.createTextNode(c):c);
+  }
+  return e;
+}
+function filled(){return S.cards.every(function(c){return c.text.trim();});}
+function stage(){var n=S.sessions.length;return n===0?1:(n<30?2:3);}
+function mean(a){return a.reduce(function(x,y){return x+y;},0)/a.length;}
+
+var MSG={
+1:'【Stage 1：認識】\n強い執着は、あなたが弱いからではありません。大切だった時間が、心に強く残っているということです。まずは「10枚カード」で、その気持ちを一つずつ見える形にしていきます。',
+2:'【Stage 2：手放し】\n同じカードを何度も手放すことで、思い出に触れたときの反応が少しずつ穏やかになっていく、と考えられています。回数を重ねるごとに、胸の痛みが和らぐかを記録で確かめましょう。',
+3:'【Stage 3：再構築】\n30回おつかれさまでした。これからは、毎日の「小さな喜び」を記録して、新しい楽しみを増やしていきましょう。'
+};
+
+function render(){
+  var m=document.getElementById('main');
+  m.innerHTML='';
+  ({home:vHome,cards:vCards,work:vWork,log:vLog,joy:vJoy})[view](m);
+  var navEl=document.getElementById('nav');
+  navEl.innerHTML='';
+  [['home','ホーム'],['cards','カード'],['log','記録'],['joy','小さな喜び']].forEach(function(t){
+    navEl.appendChild(h('button',{class:view===t[0]?'on':'',onclick:function(){if(W&&!confirm('ワークを中断しますか？（この回は記録されません）'))return;W=null;view=t[0];render();window.scrollTo(0,0);}},t[1]));
+  });
+  var f=h('div',{class:'foot'},'This is NOT a medical treatment. For mental health support only.');
+  f.appendChild(h('p',null,'医療ではありません。つらさが強いときや眠れない日が続くときは、専門家や信頼できる人に相談してください。入力した内容はこの端末の中だけに保存されます。'));
+  m.appendChild(f);
+}
+
+function vHome(m){
+  var n=S.sessions.length,a=Math.min(n,7),b=Math.max(0,Math.min(n-7,23));
+  m.appendChild(h('h1',null,'10枚カードワーク'));
+  m.appendChild(h('span',{class:'chip'},'Stage '+stage()));
+  m.appendChild(h('div',{class:'card'},h('p',{style:'white-space:pre-line'},MSG[stage()])));
+  var p=h('div',{class:'card'});
+  p.appendChild(h('div',{class:'row'},h('b',null,'手放した回数'),h('span',null,n+' / 30回')));
+  p.appendChild(h('div',{class:'bar'},h('i',{style:'width:'+Math.min(100,n/30*100)+'%'})));
+  p.appendChild(h('p',{class:'mut'},'Phase A（毎日）：'+a+'/7'+(a===7?' ✅':'')+'　Phase B（週3〜4回）：'+b+'/23'));
+  p.appendChild(h('p',{class:'mut'},n<7?'今は毎日1回がおすすめです。':'今は週3〜4回（月・水・金など）がおすすめです。'));
+  m.appendChild(p);
+  var done=S.sessions.some(function(s){return s.date===today();});
+  if(!filled()){
+    m.appendChild(h('button',{class:'btn',onclick:function(){view='cards';render();}},'まず10枚のカードを書く'));
+  }else{
+    m.appendChild(h('button',{class:'btn',onclick:startWork},done?'今日もう一度行う（約30分）':'ワークを始める（約30分）'));
+  }
+  m.appendChild(h('div',{class:'card'},h('p',{style:'font-weight:600'},'なぜ、同じカードを何度も手放すのか？'),h('p',{class:'mut'},'同じ思い出に安全な場所で何度も向き合うと、「これは危険ではない」と心が学び、反応が弱まっていく、と考えられています。回数とともに、胸の痛みが減る・思い出す時間が短くなるなどが目安です。効果には個人差があります。')));
+}
+
+function vCards(m){
+  m.appendChild(h('h1',null,'10枚のカード'));
+  m.appendChild(h('p',{class:'mut'},'有形5枚（手に取れるもの・人）と、無形5枚（時間・思い出・将来の夢）を書きます。あとから書き直せます。'));
+  var inputs=[];
+  S.cards.forEach(function(c,i){
+    var t=i<5,idx=t?i:i-5;
+    m.appendChild(h('label',null,(t?'有形 ':'無形 ')+(idx+1)));
+    var inp=h('input',{type:'text',maxlength:'60',placeholder:t?EX_T[idx]:EX_I[idx]});
+    inp.value=c.text;inputs.push(inp);m.appendChild(inp);
+  });
+  m.appendChild(h('button',{class:'btn',onclick:function(){
+    inputs.forEach(function(el,i){S.cards[i].text=el.value.trim();});
+    save();view='home';render();window.scrollTo(0,0);
+  }},'保存する'));
+}
+
+function startWork(){
+  var order=S.cards.map(function(c,i){return i;});
+  W={i:0,before:[],start:Date.now(),after:0,phase:'card',cur:0,order:order};
+  view='work';render();
+}
+
+var timerId=null;
+function vWork(m){
+  if(timerId){clearInterval(timerId);timerId=null;}
+  if(!W){view='home';return render();}
+  var head=h('div',{class:'row'},h('span',{class:'mut'},W.phase==='final'?'最後の確認':((W.i+1)+' / 10枚目')),h('span',{class:'mut',id:'tm'},'0:00'));
+  m.appendChild(head);
+  m.appendChild(h('div',{class:'bar',style:'margin:8px 0 16px'},h('i',{style:'width:'+(W.i/10*100)+'%'})));
+  timerId=setInterval(function(){
+    var el=document.getElementById('tm');if(!el){clearInterval(timerId);return;}
+    var s=Math.floor((Date.now()-W.start)/1000);el.textContent=Math.floor(s/60)+':'+('0'+s%60).slice(-2);
+  },1000);
+
+  if(W.phase==='final'){
+    m.appendChild(h('div',{class:'card'},h('p',null,'10枚すべて手放しました。おつかれさまでした。')));
+    m.appendChild(h('p',null,'今、全体の気持ちはどのくらい苦しいですか？'));
+    var sel=0,btn;
+    var st=stars(function(v){sel=v;btn.disabled=false;});
+    m.appendChild(st);
+    btn=h('button',{class:'btn',disabled:'disabled',onclick:function(){
+      S.sessions.push({date:today(),before:W.before.slice(),avg:mean(W.before),after:sel,min:Math.max(1,Math.round((Date.now()-W.start)/60000))});
+      save();W=null;if(timerId){clearInterval(timerId);timerId=null;}
+      view='log';render();window.scrollTo(0,0);
+    }},'記録して終わる');
+    m.appendChild(btn);
+    return;
+  }
+
+  var c=S.cards[W.order[W.i]];
+  var box=h('div',{class:'card work',id:'wk'},h('div',{class:'tag'},c.type==='tangible'?'有形':'無形'),h('div',null,c.text));
+  m.appendChild(box);
+  m.appendChild(h('p',{class:'mut',style:'text-align:center'},'このカードを思うと、今どのくらい苦しいですか？'));
+  var rated=0,rel;
+  m.appendChild(stars(function(v){rated=v;rel.disabled=false;}));
+  rel=h('button',{class:'btn',disabled:'disabled',onclick:function(){release();}},'手放す（上にスワイプでもOK）');
+  m.appendChild(rel);
+
+  var y0=null;
+  box.addEventListener('touchstart',function(e){y0=e.touches[0].clientY;},{passive:true});
+  box.addEventListener('touchend',function(e){
+    if(y0==null)return;var dy=e.changedTouches[0].clientY-y0;y0=null;
+    if(dy<-60&&rated)release();
+  });
+  function release(){
+    if(!rated||rel.disabled)return;
+    rel.disabled=true;W.before.push(rated);
+    box.classList.add('burn');
+    setTimeout(function(){
+      W.i++;
+      if(W.i>=10)W.phase='final';
+      render();window.scrollTo(0,0);
+    },950);
+  }
+}
+
+function stars(cb){
+  var wrap=h('div',{class:'stars'});
+  for(var v=1;v<=5;v++)(function(v){
+    var b=h('button',null,'★'+v,h('small',null,LABELS[v-1]));
+    b.addEventListener('click',function(){
+      Array.prototype.forEach.call(wrap.children,function(x){x.classList.remove('on');});
+      b.classList.add('on');cb(v);
+    });
+    wrap.appendChild(b);
+  })(v);
+  return wrap;
+}
+
+function vLog(m){
+  m.appendChild(h('h1',null,'あなたの記録'));
+  var ss=S.sessions;
+  if(!ss.length){m.appendChild(h('div',{class:'card'},h('p',null,'まだ記録がありません。最初のワークを終えると、ここにグラフが出ます。')));return;}
+  var n=ss.length;
+  m.appendChild(h('div',{class:'card'},h('div',{class:'row'},h('b',null,'手放した回数'),h('span',null,n+' / 30回')),h('p',{class:'mut'},'Phase A：'+Math.min(n,7)+'/7　Phase B：'+Math.max(0,Math.min(n-7,23))+'/23')));
+  // chart
+  var W_=320,H_=170,pl=28,pr=8,pt=10,pb=22,pw=W_-pl-pr,ph=H_-pt-pb;
+  var N=Math.max(n,2);
+  function X(i){return pl+pw*(i/(N-1));}
+  function Y(v){return pt+ph*(1-(v-1)/4);}
+  var ns='http://www.w3.org/2000/svg';
+  var svg=document.createElementNS(ns,'svg');svg.setAttribute('viewBox','0 0 '+W_+' '+H_);
+  function el(t,a,txt){var e=document.createElementNS(ns,t);for(var k in a)e.setAttribute(k,a[k]);if(txt)e.textContent=txt;svg.appendChild(e);return e;}
+  for(var v=1;v<=5;v++){el('line',{x1:pl,x2:W_-pr,y1:Y(v),y2:Y(v),stroke:'currentColor','stroke-opacity':.15});el('text',{x:4,y:Y(v)+4,'font-size':10,fill:'currentColor','fill-opacity':.6},'★'+v);}
+  function line(key,color){
+    var pts=ss.map(function(s,i){return X(i)+','+Y(s[key]);}).join(' ');
+    el('polyline',{points:pts,fill:'none',stroke:color,'stroke-width':2.5,'stroke-linejoin':'round'});
+    ss.forEach(function(s,i){el('circle',{cx:X(i),cy:Y(s[key]),r:3,fill:color});});
+  }
+  line('avg','#d9822b');line('after','#3c8d93');
+  el('text',{x:pl,y:H_-4,'font-size':10,fill:'currentColor','fill-opacity':.6},'1回目');
+  el('text',{x:W_-pr,y:H_-4,'font-size':10,'text-anchor':'end',fill:'currentColor','fill-opacity':.6},n+'回目');
+  var c1=h('div',{class:'card'});
+  c1.appendChild(h('b',null,'苦しさの変化（★が低いほど楽）'));
+  c1.appendChild(svg);
+  c1.appendChild(h('p',{class:'mut'},'■ オレンジ：10枚の平均　■ 青緑：終わった後の気持ち'));
+  m.appendChild(c1);
+  var first=ss[0],last=ss[n-1];
+  m.appendChild(h('div',{class:'card'},h('p',null,'1回目の平均 ★'+first.avg.toFixed(1)+' → 直近 ★'+last.avg.toFixed(1)),h('p',{class:'mut'},'これはあなた自身の記録です。波があっても大丈夫です。日によって上下するのは自然なことです。')));
+  var jn=S.joys.reduce(function(t,j){return t+j.items.length;},0);
+  m.appendChild(h('div',{class:'card'},h('p',null,'小さな喜びの記録：'+jn+'件（'+S.joys.length+'日）')));
+  m.appendChild(h('h2',null,'履歴'));
+  ss.slice().reverse().forEach(function(s,i){
+    m.appendChild(h('div',{class:'row',style:'padding:6px 0;border-bottom:1px solid var(--line)'},h('span',null,(n-i)+'回目　'+s.date),h('span',null,'平均★'+s.avg.toFixed(1)+' → ★'+s.after)));
+  });
+  m.appendChild(h('button',{class:'btn sub',style:'margin-top:24px',onclick:function(){
+    if(confirm('この端末の記録とカードをすべて削除します。よろしいですか？')){S=blank();save();view='home';render();}
+  }},'データをすべて削除する'));
+}
+
+function vJoy(m){
+  m.appendChild(h('h1',null,'今日の小さな喜び'));
+  m.appendChild(h('p',{class:'mut'},'友人とのコーヒー、おいしかったご飯、仕事でうまくいったこと…小さなことで大丈夫です。3つ書いてみましょう。'));
+  var t=today(),cur=S.joys.filter(function(j){return j.date===t;})[0];
+  var ins=[];
+  for(var i=0;i<3;i++){
+    var inp=h('input',{type:'text',maxlength:'80',placeholder:'喜び '+(i+1)});
+    inp.value=cur&&cur.items[i]?cur.items[i]:'';ins.push(inp);m.appendChild(inp);m.lastChild.style.marginBottom='8px';
+  }
+  m.appendChild(h('button',{class:'btn',onclick:function(){
+    var items=ins.map(function(x){return x.value.trim();}).filter(Boolean);
+    S.joys=S.joys.filter(function(j){return j.date!==t;});
+    if(items.length)S.joys.push({date:t,items:items});
+    S.joys.sort(function(a,b){return a.date<b.date?-1:1;});
+    save();render();
+  }},'保存する'));
+  m.appendChild(h('h2',null,'最近の記録'));
+  S.joys.slice(-7).reverse().forEach(function(j){
+    var c=h('div',{class:'card'},h('b',null,j.date));
+    j.items.forEach(function(x){c.appendChild(h('p',null,'・'+x));});
+    m.appendChild(c);
+  });
+}
+
+render();
+})();
+</script>
+</body>
+</html>
